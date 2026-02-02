@@ -2,11 +2,11 @@
 #include <elf.h>
 #include <fcntl.h>
 #include <fstream>
-#include <gelf.h>
 #include <glob.h>
 #include <iostream>
 #include <regex>
 #include <unistd.h>
+#include <bcc/bcc_elf.h>
 
 #include "log.h"
 #include "scopeguard.h"
@@ -74,41 +74,10 @@ static bool has_exec_permission(const std::string &path)
 // returned.
 static std::optional<int> is_elf(const std::string &path)
 {
-  int fd;
-  Elf *elf;
-  GElf_Ehdr ehdr;
-
-  if (elf_version(EV_CURRENT) == EV_NONE) {
+  int type = bcc_elf_get_type(path.c_str());
+  if (type < 0)
     return std::nullopt;
-  }
-
-  fd = open(path.c_str(), O_RDONLY, 0);
-  if (fd < 0) {
-    return std::nullopt;
-  }
-  SCOPE_EXIT
-  {
-    ::close(fd);
-  };
-
-  elf = elf_begin(fd, ELF_C_READ, nullptr);
-  if (elf == nullptr) {
-    return std::nullopt;
-  }
-  SCOPE_EXIT
-  {
-    ::elf_end(elf);
-  };
-
-  if (elf_kind(elf) != ELF_K_ELF) {
-    return std::nullopt;
-  }
-
-  if (!gelf_getehdr(elf, &ehdr)) {
-    return std::nullopt;
-  }
-
-  return ehdr.e_type;
+  return type;
 }
 
 static std::vector<std::string> expand_wildcard_path(const std::string &path)
